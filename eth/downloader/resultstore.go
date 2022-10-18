@@ -78,7 +78,7 @@ func (r *resultStore) SetThrottleThreshold(threshold uint64) uint64 {
 //	throttled - if true, the store is at capacity, this particular header is not prio now
 //	item      - the result to store data into
 //	err       - any error that occurred
-func (r *resultStore) AddFetch(header *types.Header) (stale, throttled bool, item *fetchResult, err error) {
+func (r *resultStore) AddFetch(header *types.Header, from uint64) (stale, throttled bool, item *fetchResult, err error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -173,16 +173,23 @@ func (r *resultStore) GetCompleted(limit int) []*fetchResult {
 	}
 
 	results := make([]*fetchResult, limit)
-	for i := 0; i < limit; i++ {
-		if !r.core.Engine().HasCoincidentDifficulty(r.items[i].Header) {
-			results[i] = r.items[i]
-			r.items[i] = nil
-		} else {
-			limit = i
-			// Delete the results from the cache and clear the tail.
-			copy(r.items, r.items[limit:])
-			break
-		}
+	// for i := 0; i < limit; i++ {
+	// 	if !r.core.Engine().HasCoincidentDifficulty(r.items[i].Header) {
+	// 		results[i] = r.items[i]
+	// 		r.items[i] = nil
+	// 	} else {
+	// 		limit = i
+	// 		// Delete the results from the cache and clear the tail.
+	// 		copy(r.items, r.items[limit:])
+	// 		break
+	// 	}
+	// }
+	copy(results, r.items[:limit])
+
+	// Delete the results from the cache and clear the tail.
+	copy(r.items, r.items[limit:])
+	for i := len(r.items) - limit; i < len(r.items); i++ {
+		r.items[i] = nil
 	}
 
 	// Advance the expected block number of the first cache entry

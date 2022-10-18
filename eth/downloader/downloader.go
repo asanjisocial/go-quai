@@ -377,7 +377,6 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, number ui
 	d.committed = 1
 
 	// Initiate the sync using a concurrent header and content retrieval algorithm
-	d.queue.Prepare(origin+1, mode)
 	if d.syncInitHook != nil {
 		d.syncInitHook(origin, peerHeight)
 	}
@@ -606,6 +605,10 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64) error {
 
 			fmt.Println("headers: ", headers)
 
+			if len(skeletonHeaders) > 0 {
+				d.queue.Prepare(skeletonHeaders[len(skeletonHeaders)-1].NumberU64(), FullSync)
+			}
+
 			// If the skeleton's finished, pull any remaining head headers directly from the origin
 			if skeleton && commonAncestor {
 				skeleton = false
@@ -613,13 +616,18 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64) error {
 				continue
 				// If we received a skeleton batch, resolve internals concurrently
 			} else if skeleton {
+				// trim on common, set origin to last entry in the skeleton
 				filled, proced, err := d.fillHeaderSkeleton(from, headers)
 				if err != nil {
 					p.log.Debug("Skeleton chain invalid", "err", err)
 					return fmt.Errorf("%w: %v", errInvalidChain, err)
 				}
 				headers = filled[proced:]
-				from = skeletonHeaders[len(skeletonHeaders)-1].NumberU64()
+				if len(skeletonHeaders) == 0 {
+					continue
+				} else {
+					from = skeletonHeaders[len(skeletonHeaders)-1].NumberU64()
+				}
 			}
 
 			// Insert all the new headers and fetch the next batch
@@ -940,6 +948,7 @@ func (d *Downloader) fetchParts(deliveryCh chan dataPack, deliver func(dataPack)
 				if fetchHook != nil {
 					fetchHook(request.Headers)
 				}
+
 				if err := fetch(peer, request); err != nil {
 					// Although we could try and make an attempt to fix this, this error really
 					// means that we've double allocated a fetch task to a peer. If that is the
@@ -1044,7 +1053,7 @@ func (d *Downloader) processHeaders(origin uint64, number uint64) error {
 						}
 					}
 					// Otherwise insert the headers for content retrieval
-					inserts := d.queue.Schedule(chunk, origin)
+					inserts := d.queue.Schedule(chunk)
 					if len(inserts) != len(chunk) {
 						rollbackErr = fmt.Errorf("stale headers: len inserts %v len(chunk) %v", len(inserts), len(chunk))
 						return fmt.Errorf("%w: stale headers", errBadPeer)
