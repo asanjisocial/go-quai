@@ -419,26 +419,39 @@ func (q *queue) ReserveHeaders(p *peerConnection, count int) *fetchRequest {
 	}
 
 	// remember to guard
-	start, _ := q.headerTaskQueue.Pop()
-	delete(q.headerTaskPool, start.(uint64))
-	delete(q.headerToPool, start.(uint64))
+	// start, _ := q.headerTaskQueue.Pop()
+	// delete(q.headerTaskPool, start.(uint64))
+	// delete(q.headerToPool, start.(uint64))
+
+	// // Retrieve a batch of hashes, skipping previously failed ones
+	// send, skip := uint64(0), []uint64{}
+	// for send == 0 && !q.headerTaskQueue.Empty() {
+
+	// 	// * Shouldn’t ask if the parent is the next entry in the skeleton
+	// 	// * When we ask, ask for from = skeleton - 1, and Dom = false in the request
+	// 	from, _ := q.headerTaskQueue.Peek()
+
+	// 	if from.(uint64) == start.(uint64)+1 {
+	// 		from, _ := q.headerTaskQueue.Pop()
+	// 		delete(q.headerTaskPool, from.(uint64))
+	// 		delete(q.headerToPool, from.(uint64))
+	// 		start = from
+	// 		continue
+	// 	}
+
+	// 	if q.headerPeerMiss[p.id] != nil {
+	// 		if _, ok := q.headerPeerMiss[p.id][from.(uint64)]; ok {
+	// 			skip = append(skip, from.(uint64))
+	// 			continue
+	// 		}
+	// 	}
+	// 	send = from.(uint64)
+	// }
 
 	// Retrieve a batch of hashes, skipping previously failed ones
 	send, skip := uint64(0), []uint64{}
 	for send == 0 && !q.headerTaskQueue.Empty() {
-
-		// * Shouldn’t ask if the parent is the next entry in the skeleton
-		// * When we ask, ask for from = skeleton - 1, and Dom = false in the request
-		from, _ := q.headerTaskQueue.Peek()
-
-		if from.(uint64) == start.(uint64)+1 {
-			from, _ := q.headerTaskQueue.Pop()
-			delete(q.headerTaskPool, from.(uint64))
-			delete(q.headerToPool, from.(uint64))
-			start = from
-			continue
-		}
-
+		from, _ := q.headerTaskQueue.Pop()
 		if q.headerPeerMiss[p.id] != nil {
 			if _, ok := q.headerPeerMiss[p.id][from.(uint64)]; ok {
 				skip = append(skip, from.(uint64))
@@ -524,9 +537,9 @@ func (q *queue) reserveHeaders(p *peerConnection, count int, taskPool map[common
 		from, _ := q.headerTaskQueue.Peek()
 
 		// cleaning the queue
-		if q.headerTaskQueue.Size() == 1 {
-			q.headerTaskQueue.Pop()
-		}
+		// if q.headerTaskQueue.Size() == 1 {
+		// 	q.headerTaskQueue.Pop()
+		// }
 
 		stale, throttle, item, err := q.resultCache.AddFetch(header, from.(uint64))
 		if stale {
@@ -734,7 +747,7 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh 
 	targetFrom := q.headerTaskPool[request.From+1].Hash()
 	targetTo := q.headerToPool[request.From+1]
 
-	requiredHeaderFetch := request.From - targetTo
+	requiredHeaderFetch := request.From - targetTo + 1
 	fmt.Println("request peek: ", requiredHeaderFetch)
 	fmt.Println("request: ", request)
 	fmt.Println("target: ", targetFrom, "len of headers: ", len(headers))
